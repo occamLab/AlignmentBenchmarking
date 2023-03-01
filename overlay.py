@@ -60,4 +60,21 @@ for x in lat_long:
 gar_anchors_poses_filtered = np.array(list(map(lambda x: (x[-1]), gar_anchors_filtered)))
 df = pd.DataFrame(lat_long, columns=['ID', 'longitude', 'latitude', 'altitude', 'geoAnchorTransform'])
 df = df.rename(columns={'geoAnchorTransform': 'pose'}) # Rename the column to match the DataFrame
-pose_transforms = np.array(list(map(lambda x: calculateDifference(x[0], x[1]), zip(gar_anchors_filtered, lat_long_poses))))
+pose_transforms = np.zeros((len(gar_anchors_poses_filtered), 4, 4))
+for i in range(len(gar_anchors_poses_filtered)):
+    pose_transforms[i] = calculateDifference(gar_anchors_poses_filtered[i], lat_long_poses[i])
+
+# Use the first pose transform to transform lat_long_only
+transformed_points = np.zeros_like(lat_long_only)
+for i in range(len(lat_long_only)):
+    homogenous_coord = np.hstack((lat_long_only[i], 1))
+    transformed_coord = pose_transforms[0] @ homogenous_coord
+    transformed_points[i] = transformed_coord[:3]
+
+# Plot the transformed points
+fig = plt.figure()
+ax = fig.add_subplot(111)
+ax.scatter(transformed_points[:,0], transformed_points[:,1], s=10)
+ax.set_xlabel('Longitude')
+ax.set_ylabel('Latitude')
+plt.show()
