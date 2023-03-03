@@ -6,7 +6,6 @@ from scipy.linalg import inv
 
 
 def calculateDifference(pose1, pose2):
-    print(pose1)
     pose1 = np.array(pose1).reshape(4, 4)
     pose2 = np.array(pose2).reshape(4, 4)
 
@@ -17,22 +16,22 @@ def calculateDifference(pose1, pose2):
     t2 = pose2[:3, 3]
 
     # Calculate the rotation difference between the two poses
-    R_diff = np.linalg.inv(R1) @ R2
+    # R_diff = np.linalg.inv(R1) @ R2
 
-    # Calculate the translation difference between the two poses
-    t_diff = t2 - t1
+    # # Calculate the translation difference between the two poses
+    # t_diff = t2 - t1
 
-    # Print the rotation and translation differences
-    print("Rotation difference:")
-    print(R_diff)
+    # # Print the rotation and translation differences
+    # print("Rotation difference:")
+    # print(R_diff)
 
-    print("Translation difference:")
-    print(t_diff)
-    RT = np.hstack((R_diff, t_diff.reshape(3, 1)))
-    RT_homogeneous = np.vstack((RT, np.array([0, 0, 0, 1])))
+    # print("Translation difference:")
+    # print(t_diff)
+    # RT = np.hstack((R_diff, t_diff.reshape(3, 1)))
+    # RT_homogeneous = np.vstack((RT, np.array([0, 0, 0, 1])))
 
-    print(RT_homogeneous)
-    
+    # print(RT_homogeneous)
+    RT_homogeneous = np.linalg.inv(pose1.T) @ pose2.T
     return RT_homogeneous
 
 
@@ -63,12 +62,12 @@ df = df.rename(columns={'geoAnchorTransform': 'pose'}) # Rename the column to ma
 pose_transforms = np.zeros((len(gar_anchors_poses_filtered), 4, 4))
 for i in range(len(gar_anchors_poses_filtered)):
     pose_transforms[i] = calculateDifference(gar_anchors_poses_filtered[i], lat_long_poses[i])
-
+print(pose_transforms)
 # Use the first pose transform to transform lat_long_only
 transformed_points = np.zeros_like(lat_long_only)
 for i in range(len(lat_long_only)):
     homogenous_coord = np.hstack((lat_long_only[i], 1))
-    transformed_coord = pose_transforms[0] @ homogenous_coord
+    transformed_coord = pose_transforms[1] @ homogenous_coord
     transformed_points[i] = transformed_coord[:3]
 
 # Plot the transformed points
