@@ -66,13 +66,18 @@ for i in range(len(gar_anchors_poses_filtered)):
 print(pose_transforms)
 print(len(pose_transforms))
 # Use the first pose transform to transform lat_long_only
-alignment_transform = pose_transforms[0]
 transformed_poses = []
 lat_long = np.array(list(map(lambda x: (x['GARAnchorUUID'], x['longitude'], x['latitude'], x['altitude'], x['geoAnchorTransform']), alldata['savedRouteGeospatialLocations'])))
 lat_long_only = np.array(list(map(lambda x: (x[1],x[2],x[3]), lat_long)))
 lat_long_poses = np.array(list(map(lambda x: (x[-1]), lat_long)))
-for pose in lat_long_poses:
+pose_transforms = pose_transforms.tolist()
+pose_transforms.reverse()
+for i, pose in enumerate(lat_long_poses):
     # Convert pose to homogeneous transformation matrix
+    print(i)
+    if i == 74:
+        break
+    alignment_transform = pose_transforms[i]
     pose_matrix = np.array(pose).reshape((4, 4)).T
     # Transform pose to new coordinate frame using alignment_transform
     transformed_pose = alignment_transform @ pose_matrix
@@ -83,6 +88,6 @@ for pose in lat_long_poses:
 transformed_poses = np.array(transformed_poses)
 
 # Plot x,y coordinates of transformed poses
-plt.plot(transformed_poses[:, 0, 3], transformed_poses[:, 1, 3])
+plt.scatter(transformed_poses[:, 0, 3], transformed_poses[:, 1, 3])
 plt.show()
 
