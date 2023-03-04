@@ -35,9 +35,9 @@ def calculateDifference(pose1, pose2):
     return RT_homogeneous
 
 
-f = open('tester_log_metdata.json')
+f = open('2E8519AA-4E63-4B9E-9D4E-05F7AFA202872023-03-03T09:51:12-05:00-0_metadata.json')
 metadata = json.load(f)
-f2 = open('tester_log_pathdata.json')
+f2 = open('2E8519AA-4E63-4B9E-9D4E-05F7AFA202872023-03-03T09:51:12-05:00_pathdata.json')
 pathdata = json.load(f2)
 
 alldata = pathdata
@@ -74,6 +74,5 @@ for i in range(len(lat_long_only)):
 fig = plt.figure()
 ax = fig.add_subplot(111)
 ax.scatter(transformed_points[:,0], transformed_points[:,1], s=10)
-ax.set_xlabel('Longitude')
-ax.set_ylabel('Latitude')
+
 plt.show()
