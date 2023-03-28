@@ -15,22 +15,6 @@ def calculateDifference(pose1, pose2):
     t1 = pose1[:3, 3]
     t2 = pose2[:3, 3]
 
-    # Calculate the rotation difference between the two poses
-    # R_diff = np.linalg.inv(R1) @ R2
-
-    # # Calculate the translation difference between the two poses
-    # t_diff = t2 - t1
-
-    # # Print the rotation and translation differences
-    # print("Rotation difference:")
-    # print(R_diff)
-
-    # print("Translation difference:")
-    # print(t_diff)
-    # RT = np.hstack((R_diff, t_diff.reshape(3, 1)))
-    # RT_homogeneous = np.vstack((RT, np.array([0, 0, 0, 1])))
-
-    # print(RT_homogeneous)
     RT_homogeneous = np.linalg.inv(pose1.T) @ pose2.T
     return RT_homogeneous
 
