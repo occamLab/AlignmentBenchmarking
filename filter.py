@@ -1,19 +1,10 @@
 import numpy as np
+import random
+import json
 from filterpy.monte_carlo import systematic_resample
 from filterpy.monte_carlo import residual_resample
 from filterpy.monte_carlo import stratified_resample
 from filterpy.monte_carlo import multinomial_resample
-from filterpy.kalman import unscented_transform
-from filterpy.kalman import MerweScaledSigmaPoints
-from filterpy.kalman import JulierSigmaPoints
-from filterpy.kalman import KalmanFilter
-from filterpy.kalman import ExtendedKalmanFilter
-from filterpy.kalman import UnscentedKalmanFilter
-from filterpy.kalman import EnsembleKalmanFilter
-from filterpy.kalman import ImmKalmanFilter
-from filterpy.kalman import cubature_KF
-from filterpy.kalman import SquareRootKalmanFilter
-from filterpy.kalman import InformationFilter
 from filterpy.monte_carlo import ParticleFilter
 
 # Define the particle class
@@ -51,6 +42,21 @@ def measure(particles):
 # Define the initial state of the system
 initial_state = np.array([0, 0, 0]) # TODO: Initialize the state of the system based on the initial position of the AR device
 
+# you can get the lat long for the cloud anchor by matching its pose with the garAnchors
+
+# load the data
+f = open('tester_log_metdata.json')
+metadata = json.load(f)
+f2 = open('tester_log_pathdata.json')
+pathdata = json.load(f2)
+
+alldata = pathdata
+for key in metadata:
+    alldata[key] = metadata[key]
+
+# GAR anchors measured by ARKit
+gar_anchors = np.array(list(map(lambda x: (x['identifier'], x['transform']), alldata['garAnchors'])))
+
 # Create the particles
 num_particles = 100
 particles = [SavedRouteParticle(initial_state) for i in range(num_particles)]
@@ -60,7 +66,7 @@ weights = np.ones(num_particles) / num_particles
 pf = ParticleFilter(num_particles, len(initial_state), resample=resample, N_eff=num_particles/2, p=random.uniform(0, 1), q=random.uniform(0, 1))
 
 # Loop over the time steps
-for i in range(len(savedRouteGeoSpatial)):
+for i in range(len(alldata["savedRouteGeospatialLocations"])):
     # Predict the position and orientation of each particle at the next time step
     for p in particles:
         p.predict()
