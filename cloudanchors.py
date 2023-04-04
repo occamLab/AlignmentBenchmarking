@@ -9,6 +9,7 @@ def get_matching_cloud_anchor(cloud_identifier):
 for anchor in alldata['garAnchors'][-3]:
     if anchor['cloudIdentifier']:
         corresponding_pose = get_matching_cloud_anchor(anchor['cloudIdentifier'])
+        print(corresponding_pose)
         if corresponding_pose is None:
             continue
         current_pose = np.array(anchor['transform']).reshape((4,4)).T

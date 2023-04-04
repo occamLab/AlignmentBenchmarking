@@ -1,6 +1,6 @@
 import math
 
-def llh_to_ecef(lat, lon, alt):
+def llh_to_ecef(lat, lon, alt, hor_unc, alt_unc):
     # Constants
     a = 6378137.0  # Semi-major axis of the Earth (meters)
     f = 1 / 298.257223563  # Flattening factor of the Earth
@@ -18,4 +18,6 @@ def llh_to_ecef(lat, lon, alt):
     y = (N + alt) * math.cos(lat_rad) * math.sin(lon_rad)
     z = ((1 - e2) * N + alt) * math.sin(lat_rad)
 
-    return x, y, z
+    uncertainty_ecef = np.sqrt(hor_unc**2 + alt_unc**2)
+
+    return x, y, z, uncertainty_ecef

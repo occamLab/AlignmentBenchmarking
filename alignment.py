@@ -8,6 +8,7 @@ from scipy.linalg import inv
 def get_matching_cloud_anchor(cloud_identifier):
     for anchor in alldata['cloudAnchorsForAlignment']:
         if anchor['cloudAnchorID'] == cloud_identifier:
+            print(anchor)
             return np.array(anchor['anchorTransform']).reshape((4,4)).T
     return None
 f = open('2E8519AA-4E63-4B9E-9D4E-05F7AFA202872023-03-03T09:51:12-05:00-0_metadata.json')
