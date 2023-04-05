@@ -1,5 +1,5 @@
 import math
-
+import json
 def llh_to_ecef(lat, lon, alt, hor_unc, alt_unc):
     # Constants
     a = 6378137.0  # Semi-major axis of the Earth (meters)
@@ -21,3 +21,18 @@ def llh_to_ecef(lat, lon, alt, hor_unc, alt_unc):
     uncertainty_ecef = np.sqrt(hor_unc**2 + alt_unc**2)
 
     return x, y, z, uncertainty_ecef
+f = open('bad_metadata.json')
+metadata = json.load(f)
+f2 = open('bad_pathdata.json')
+pathdata = json.load(f2)
+
+alldata = pathdata
+for key in metadata:
+    alldata[key] = metadata[key]
+    
+print(len(alldata["geoSpatialTransformTimes"]))
+print(len(alldata["savedRouteGeospatialLocations"]))
+print(len(alldata["geoSpatialTransforms"]))
+print(len(alldata["garAnchorCameraWorldTransformsAndGeoSpatialData"]))
+#print([x - alldata["garAnchorTimestamps"][0] for x in alldata["garAnchorTimestamps"]])
+#print([x - alldata["geoSpatialTransformTimes"][0] for x in alldata["geoSpatialTransformTimes"]])
