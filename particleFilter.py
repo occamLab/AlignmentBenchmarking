@@ -16,27 +16,19 @@ def create_particles(geoSpatialTransforms, N):
 
 def predict(particles, delta_time, heading, speed=0.0001):
     lat, lon, _ = particles.T
-    delta_lat = np.sin(heading) * speed * delta_time
-    delta_lon = np.cos(heading) * speed * delta_time
+    delta_lat = np.sin(np.deg2rad(heading)) * speed * delta_time
+    delta_lon = np.cos(np.deg2rad(heading)) * speed * delta_time
     particles[:, 0] += delta_lat
     particles[:, 1] += delta_lon
 
-# def predict(particles, delta_time, heading, velocity):
-#     for p in particles:
-#         distance_traveled = velocity * delta_time
-#         new_lat, new_lon = estimate_new_position(p.lat, p.lon, p.heading, distance_traveled)
-#         p.lat = new_lat + std_devs[0] * np.random.randn()
-#         p.lon = new_lon + std_devs[1] * np.random.randn()
-#         p.alt += delta_time * std_devs[2] * np.random.randn()
-#         p.heading += delta_time * std_devs[3] * np.random.randn()
 def update(particles, weights, measurement, uncertainties):
     lat_uncertainty, lon_uncertainty, alt_uncertainty = uncertainties
     weights.fill(1.0)
 
     for i, p in enumerate(particles):
-        dist = np.sqrt(((p[0] - measurement[0]) / (lat_uncertainty*0.1)) ** 2 +
-                       ((p[1] - measurement[1]) / (lon_uncertainty*0.1)) ** 2 +
-                       ((p[2] - measurement[2]) / (alt_uncertainty*0.1)) ** 2)
+        dist = np.sqrt(((p[0] - measurement[0]) / (lat_uncertainty)) ** 2 +
+                       ((p[1] - measurement[1]) / (lon_uncertainty)) ** 2 +
+                       ((p[2] - measurement[2]) / (alt_uncertainty)) ** 2)
         weights[i] *= np.exp(-dist)
 
     weights += 1.e-300
@@ -77,7 +69,6 @@ def particle_filter(geoSpatialTransforms, timestamps, N=1000):
 
     return predictions
 
-# Example usage
 f = open('bad_metadata.json')
 metadata = json.load(f)
 f2 = open('bad_pathdata.json')
@@ -102,7 +93,7 @@ predictions = particle_filter(coords, timestamps)
 
 latitudes = [x[0] for x in coords]
 longitudes = [x[1] for x in coords]
-plt.plot(longitudes, latitudes, 'go', label='Ground Truth')
+plt.plot(latitudes, longitudes, 'go', label='Ground Truth')
 plt.plot([x[0] for x in predictions], [x[1] for x in predictions], 'bo', label='Predicted')
 plt.legend(loc='lower right')
 plt.xlabel('Longitude')
