@@ -4,35 +4,71 @@ from numpy.linalg import norm
 from numpy.random import randn
 import matplotlib.pyplot as plt
 import json
+import navpy
+from pyproj import Transformer
+from scipy.stats import multivariate_normal
 
 def create_particles(geoSpatialTransforms, N):
     particles = np.empty((N, 3))
     lat, lon, alt = geoSpatialTransforms[0][:3]
-    particles[:, 0] = lat
-    particles[:, 1] = lon
-    particles[:, 2] = alt
-    print(particles)
+    x, y, z = latlonalt_to_ecef(lat, lon, alt)
+    particles[:, 0] = x
+    particles[:, 1] = y
+    particles[:, 2] = z
     return particles
 
-def predict(particles, delta_time, heading, speed=0.0001):
-    lat, lon, _ = particles.T
-    delta_lat = np.sin(np.deg2rad(heading)) * speed * delta_time
-    delta_lon = np.cos(np.deg2rad(heading)) * speed * delta_time
-    particles[:, 0] += delta_lat
-    particles[:, 1] += delta_lon
+def latlonalt_to_ecef(lat, lon, alt):
+    transformer = Transformer.from_crs("epsg:4326", "epsg:4978")
+    x, y, z = transformer.transform(lat, lon, alt)
+    return x, y, z
 
-def update(particles, weights, measurement, uncertainties):
-    lat_uncertainty, lon_uncertainty, alt_uncertainty = uncertainties
+def update_ecef_uncertainties(lat, lon, alt, lat_uncertainty, lon_uncertainty, alt_uncertainty):
+    a = 6378137.0  # Earth's semi-major axis (m)
+    f = 1 / 298.257223563  # Earth's flattening
+    e2 = 2 * f - f ** 2  # Earth's first eccentricity squared
+
+    N_phi = a / np.sqrt(1 - e2 * np.sin(np.radians(lat)) ** 2)
+    x_uncertainty = np.abs((N_phi + alt) * np.cos(np.radians(lat)) * np.radians(lon_uncertainty))
+    y_uncertainty = np.abs((N_phi * (1 - e2) + alt) * np.sin(np.radians(lat)) * np.radians(lat_uncertainty))
+    z_uncertainty = alt_uncertainty
+
+    return x_uncertainty, y_uncertainty, z_uncertainty
+def predict(particles, delta_time, prev_lat, prev_lon, prev_alt, current_lat, current_lon, current_alt, noise_std=10):
+    prev_x, prev_y, prev_z = latlonalt_to_ecef(prev_lat, prev_lon, prev_alt)
+    current_x, current_y, current_z = latlonalt_to_ecef(current_lat, current_lon, current_alt)
+    dist_ecef = np.array([current_x - prev_x, current_y - prev_y, current_z - prev_z])
+    noise = np.random.normal(0, noise_std, size=(particles.shape[0], 3))
+    particles += dist_ecef  + noise
+# def predict(particles, delta_time, prev_lat, prev_lon, prev_alt, heading, avg_walking_speed=1.4, noise_std=20):
+#     R = 6371000  # radius of Earth in meters
+#     lat_rad = np.radians(prev_lat)
+#     lon_rad = np.radians(prev_lon)
+    
+#     dlat = (avg_walking_speed * delta_time * np.cos(np.radians(heading))) / R
+#     dlon = (avg_walking_speed * delta_time * np.sin(np.radians(heading))) / (R * np.cos(lat_rad))
+    
+#     new_lat = prev_lat + np.degrees(dlat)
+#     new_lon = prev_lon + np.degrees(dlon)
+
+#     prev_x, prev_y, prev_z = latlonalt_to_ecef(prev_lat, prev_lon, prev_alt)
+#     current_x, current_y, current_z = latlonalt_to_ecef(new_lat, new_lon, prev_alt)
+    
+#     dist_ecef = np.array([current_x - prev_x, current_y - prev_y, current_z - prev_z])
+
+#     noise = np.random.normal(0, noise_std, size=(particles.shape[0], 3))
+#     particles += dist_ecef + noise
+
+
+def update(particles, weights, measurement_ecef, uncertainties, weight_effect=4000):
     weights.fill(1.0)
 
     for i, p in enumerate(particles):
-        dist = np.sqrt(((p[0] - measurement[0]) / (lat_uncertainty)) ** 2 +
-                       ((p[1] - measurement[1]) / (lon_uncertainty)) ** 2 +
-                       ((p[2] - measurement[2]) / (alt_uncertainty)) ** 2)
-        weights[i] *= np.exp(-dist)
-
+        cov = np.diag(np.array(uncertainties) ** 2)
+        weight = multivariate_normal.pdf(p, mean=measurement_ecef, cov=cov)
+        weights[i] = weight ** weight_effect
     weights += 1.e-300
     weights /= np.sum(weights)
+    return weights
 
 def estimate(particles, weights):
     return np.average(particles, axis=0, weights=weights)
@@ -53,19 +89,35 @@ def particle_filter(geoSpatialTransforms, timestamps, N=1000):
 
     for t in range(1, len(geoSpatialTransforms)):
         delta_time = (timestamps[t] - timestamps[t - 1])
+        prev_lat, prev_lon, prev_alt = geoSpatialTransforms[t - 1][:3]
+        current_lat, current_lon, current_alt = geoSpatialTransforms[t][:3]
         heading = geoSpatialTransforms[t][3]
-        predict(particles, delta_time, heading)
+        #predict(particles, delta_time, prev_lat, prev_lon, prev_alt, heading)
+        predict(particles, delta_time, prev_lat, prev_lon, prev_alt, current_lat, current_lon, current_alt)
+        print(f"Step: {t}, Delta time: {delta_time}, Heading: {heading}")
+        
+        measurement_ecef = latlonalt_to_ecef(current_lat, current_lon, current_alt)
 
-        measurement = geoSpatialTransforms[t][:3]
-        uncertainties = geoSpatialTransforms[t][4:]
-        update(particles, weights, measurement, uncertainties)
+        uncertainties = update_ecef_uncertainties(current_lat, current_lon, current_alt,
+                                          geoSpatialTransforms[t][4],
+                                          geoSpatialTransforms[t][6],
+                                          geoSpatialTransforms[t][3])
+        weights = update(particles, weights, measurement_ecef, uncertainties)
+        
 
+        print(f"Weights at step {t}: {weights}")
+        
         if neff(weights) < N / 2:
             indexes = systematic_resample(weights)
             resample_from_index(particles, weights, indexes)
+        
+        print(f"Particles at step {t}: {particles}")
 
-        mu = estimate(particles, weights)
-        predictions.append(mu)
+        estimate_position = estimate(particles, weights)
+        
+        print(f"Estimated position at step {t}: {estimate_position}")
+        
+        predictions.append(estimate_position)
 
     return predictions
 
@@ -91,12 +143,15 @@ for d in alldata['geoSpatialTransforms']:
 
 predictions = particle_filter(coords, timestamps)
 
-latitudes = [x[0] for x in coords]
-longitudes = [x[1] for x in coords]
-plt.plot(latitudes, longitudes, 'go', label='Ground Truth')
-plt.plot([x[0] for x in predictions], [x[1] for x in predictions], 'bo', label='Predicted')
+ecef_coords = [latlonalt_to_ecef(coord[0], coord[1], coord[2]) for coord in coords]
+x_coords = [coord[0] for coord in ecef_coords]
+y_coords = [coord[1] for coord in ecef_coords]
+
+plt.plot(x_coords, y_coords, 'go', label='Ground Truth')
+plt.plot([pred[0] for pred in predictions], [pred[1] for pred in predictions], 'bx', label='Predicted')
 plt.legend(loc='lower right')
-plt.xlabel('Longitude')
-plt.ylabel('Latitude')
-plt.title('Particle Filter Predictions')
+plt.xlabel('ECEF X')
+plt.ylabel('ECEF Y')
+plt.title('Particle Filter Predictions in ECEF')
 plt.show()
+
