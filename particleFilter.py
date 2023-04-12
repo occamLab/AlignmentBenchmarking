@@ -15,6 +15,7 @@ def create_particles(geoSpatialTransforms, N):
     particles[:, 0] = x
     particles[:, 1] = y
     particles[:, 2] = z
+    print(particles)
     return particles
 
 def latlonalt_to_ecef(lat, lon, alt):
@@ -26,14 +27,14 @@ def update_ecef_uncertainties(lat, lon, alt, lat_uncertainty, lon_uncertainty, a
     a = 6378137.0  # Earth's semi-major axis (m)
     f = 1 / 298.257223563  # Earth's flattening
     e2 = 2 * f - f ** 2  # Earth's first eccentricity squared
-
+    #Not very good
     N_phi = a / np.sqrt(1 - e2 * np.sin(np.radians(lat)) ** 2)
     x_uncertainty = np.abs((N_phi + alt) * np.cos(np.radians(lat)) * np.radians(lon_uncertainty))
     y_uncertainty = np.abs((N_phi * (1 - e2) + alt) * np.sin(np.radians(lat)) * np.radians(lat_uncertainty))
     z_uncertainty = alt_uncertainty
 
     return x_uncertainty, y_uncertainty, z_uncertainty
-def predict(particles, delta_time, prev_lat, prev_lon, prev_alt, current_lat, current_lon, current_alt, noise_std=10):
+def predict(particles, delta_time, prev_lat, prev_lon, prev_alt, current_lat, current_lon, current_alt, noise_std=1):
     prev_x, prev_y, prev_z = latlonalt_to_ecef(prev_lat, prev_lon, prev_alt)
     current_x, current_y, current_z = latlonalt_to_ecef(current_lat, current_lon, current_alt)
     dist_ecef = np.array([current_x - prev_x, current_y - prev_y, current_z - prev_z])
@@ -59,7 +60,7 @@ def predict(particles, delta_time, prev_lat, prev_lon, prev_alt, current_lat, cu
 #     particles += dist_ecef + noise
 
 
-def update(particles, weights, measurement_ecef, uncertainties, weight_effect=4000):
+def update(particles, weights, measurement_ecef, uncertainties, weight_effect=4000000):
     weights.fill(1.0)
 
     for i, p in enumerate(particles):
@@ -84,7 +85,6 @@ def resample_from_index(particles, weights, indexes):
 def particle_filter(geoSpatialTransforms, timestamps, N=1000):
     particles = create_particles(geoSpatialTransforms, N)
     weights = np.ones(N) / N
-
     predictions = []
 
     for t in range(1, len(geoSpatialTransforms)):
@@ -108,6 +108,7 @@ def particle_filter(geoSpatialTransforms, timestamps, N=1000):
         print(f"Weights at step {t}: {weights}")
         
         if neff(weights) < N / 2:
+            return
             indexes = systematic_resample(weights)
             resample_from_index(particles, weights, indexes)
         
