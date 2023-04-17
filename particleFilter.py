@@ -35,7 +35,7 @@ def update_ecef_uncertainties(lat, lon, alt, lat_uncertainty, lon_uncertainty, a
     z_uncertainty = alt_uncertainty
 
     return x_uncertainty, y_uncertainty, z_uncertainty
-def predict(particles, delta_time, prev_lat, prev_lon, prev_alt, current_lat, current_lon, current_alt, noise_std=1):
+def predict(particles, prev_lat, prev_lon, prev_alt, current_lat, current_lon, current_alt, prev_pose, pose, noise_std=1):
     prev_x, prev_y, prev_z = latlonalt_to_ecef(prev_lat, prev_lon, prev_alt)
     current_x, current_y, current_z = latlonalt_to_ecef(current_lat, current_lon, current_alt)
     dist_ecef = np.array([current_x - prev_x, current_y - prev_y, current_z - prev_z])
@@ -83,19 +83,20 @@ def resample_from_index(particles, weights, indexes):
     weights.resize(len(particles))
     weights.fill(1.0 / len(weights))
 
-def particle_filter(geoSpatialTransforms, timestamps, N=1000):
+def particle_filter(geoSpatialTransforms, N=1000):
     particles = create_particles(geoSpatialTransforms, N)
     weights = np.ones(N) / N
     predictions = []
 
     for t in range(1, len(geoSpatialTransforms)):
-        delta_time = (timestamps[t] - timestamps[t - 1])
         prev_lat, prev_lon, prev_alt = geoSpatialTransforms[t - 1][:3]
+        prev_pose = geoSpatialTransforms[t-1][-1]
+        pose = geoSpatialTransforms[t][-1]
         current_lat, current_lon, current_alt = geoSpatialTransforms[t][:3]
         heading = geoSpatialTransforms[t][3]
         #predict(particles, delta_time, prev_lat, prev_lon, prev_alt, heading)
-        predict(particles, delta_time, prev_lat, prev_lon, prev_alt, current_lat, current_lon, current_alt)
-        print(f"Step: {t}, Delta time: {delta_time}, Heading: {heading}")
+        predict(particles, prev_lat, prev_lon, prev_alt, current_lat, current_lon, current_alt, prev_pose, pose)
+        print(f"Step: {t}, Heading: {heading}")
         
         measurement_ecef = latlonalt_to_ecef(current_lat, current_lon, current_alt)
 
@@ -133,20 +134,21 @@ for key in metadata:
     alldata[key] = metadata[key]
 timestamps = alldata["geoSpatialTransformTimes"]
 coords = []
-for d in alldata['geoSpatialTransforms']:
-    lat = d['latitude']
-    lon = d['longitude']
-    alt = d['altitude']
-    heading = d['heading']
-    lat_uncertainty = d['positionAccuracy']
-    lon_uncertainty = d['positionAccuracy']
-    alt_uncertainty = d['altitudeAccuracy']
-    coords.append([lat, lon, alt, heading, lat_uncertainty, lon_uncertainty, alt_uncertainty])
+for d in alldata["garAnchorCameraWorldTransformsAndGeoSpatialData"]:
+    lat = d["geospatialTransform"]['latitude']
+    lon = d["geospatialTransform"]['longitude']
+    alt = d["geospatialTransform"]['altitude']
+    heading = d["geospatialTransform"]['heading']
+    lat_uncertainty = d["geospatialTransform"]['positionAccuracy']
+    lon_uncertainty = d["geospatialTransform"]['positionAccuracy']
+    alt_uncertainty = d["geospatialTransform"]['altitudeAccuracy']
+    pose = np.array(d["cameraWorldTransform"]).reshape(4, 4).T
+    coords.append([lat, lon, alt, heading, lat_uncertainty, lon_uncertainty, alt_uncertainty, pose])
 
 transform_poses = [np.array(x["cameraWorldTransform"]).reshape(4, 4).T for x in alldata["garAnchorCameraWorldTransformsAndGeoSpatialData"]]
 inv(transform_poses[1]) @ transform_poses[0]
 
-# predictions = particle_filter(coords, timestamps)
+predictions = particle_filter(coords)
 
 # ecef_coords = [latlonalt_to_ecef(coord[0], coord[1], coord[2]) for coord in coords]
 # x_coords = [coord[0] for coord in ecef_coords]
