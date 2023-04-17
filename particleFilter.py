@@ -7,6 +7,7 @@ import json
 import navpy
 from pyproj import Transformer
 from scipy.stats import multivariate_normal
+from scipy.linalg import inv
 
 def create_particles(geoSpatialTransforms, N):
     particles = np.empty((N, 3))
@@ -142,17 +143,20 @@ for d in alldata['geoSpatialTransforms']:
     alt_uncertainty = d['altitudeAccuracy']
     coords.append([lat, lon, alt, heading, lat_uncertainty, lon_uncertainty, alt_uncertainty])
 
-predictions = particle_filter(coords, timestamps)
+transform_poses = [np.array(x["cameraWorldTransform"]).reshape(4, 4).T for x in alldata["garAnchorCameraWorldTransformsAndGeoSpatialData"]]
+inv(transform_poses[1]) @ transform_poses[0]
 
-ecef_coords = [latlonalt_to_ecef(coord[0], coord[1], coord[2]) for coord in coords]
-x_coords = [coord[0] for coord in ecef_coords]
-y_coords = [coord[1] for coord in ecef_coords]
+# predictions = particle_filter(coords, timestamps)
 
-plt.plot(x_coords, y_coords, 'go', label='Ground Truth')
-plt.plot([pred[0] for pred in predictions], [pred[1] for pred in predictions], 'bx', label='Predicted')
-plt.legend(loc='lower right')
-plt.xlabel('ECEF X')
-plt.ylabel('ECEF Y')
-plt.title('Particle Filter Predictions in ECEF')
-plt.show()
+# ecef_coords = [latlonalt_to_ecef(coord[0], coord[1], coord[2]) for coord in coords]
+# x_coords = [coord[0] for coord in ecef_coords]
+# y_coords = [coord[1] for coord in ecef_coords]
+
+# plt.plot(x_coords, y_coords, 'go', label='Ground Truth')
+# plt.plot([pred[0] for pred in predictions], [pred[1] for pred in predictions], 'bx', label='Predicted')
+# plt.legend(loc='lower right')
+# plt.xlabel('ECEF X')
+# plt.ylabel('ECEF Y')
+# plt.title('Particle Filter Predictions in ECEF')
+# plt.show()
 
