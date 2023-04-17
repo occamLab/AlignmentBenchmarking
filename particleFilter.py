@@ -10,13 +10,15 @@ from scipy.stats import multivariate_normal
 from scipy.linalg import inv
 
 def create_particles(geoSpatialTransforms, N):
-    particles = np.empty((N, 3))
+    particles = [dict() for _ in range(N)]
     lat, lon, alt = geoSpatialTransforms[0][:3]
     x, y, z = latlonalt_to_ecef(lat, lon, alt)
-    particles[:, 0] = x
-    particles[:, 1] = y
-    particles[:, 2] = z
-    print(particles)
+    pose = geoSpatialTransforms[0][-1]
+    for particle in particles:
+        particle['x'] = x
+        particle['y'] = y
+        particle['z'] = z
+        particle['pose'] = pose
     return particles
 
 def latlonalt_to_ecef(lat, lon, alt):
@@ -39,8 +41,11 @@ def predict(particles, prev_lat, prev_lon, prev_alt, current_lat, current_lon, c
     prev_x, prev_y, prev_z = latlonalt_to_ecef(prev_lat, prev_lon, prev_alt)
     current_x, current_y, current_z = latlonalt_to_ecef(current_lat, current_lon, current_alt)
     dist_ecef = np.array([current_x - prev_x, current_y - prev_y, current_z - prev_z])
-    noise = np.random.normal(0, noise_std, size=(particles.shape[0], 3))
-    particles += dist_ecef  + noise
+    noise = np.random.normal(0, noise_std, size=(len(particles), 3))
+    for i, particle in enumerate(particles):
+        particle['x'] += dist_ecef[0] + noise[i, 0]
+        particle['y'] += dist_ecef[1] + noise[i, 1]
+        particle['z'] += dist_ecef[2] + noise[i, 2]
 # def predict(particles, delta_time, prev_lat, prev_lon, prev_alt, heading, avg_walking_speed=1.4, noise_std=20):
 #     R = 6371000  # radius of Earth in meters
 #     lat_rad = np.radians(prev_lat)
@@ -65,15 +70,19 @@ def update(particles, weights, measurement_ecef, uncertainties, weight_effect=40
     weights.fill(1.0)
 
     for i, p in enumerate(particles):
+        particle_array = np.array([p['x'], p['y'], p['z']])
         cov = np.diag(np.array(uncertainties) ** 2)
-        weight = multivariate_normal.pdf(p, mean=measurement_ecef, cov=cov)
+        weight = multivariate_normal.pdf(particle_array, mean=measurement_ecef, cov=cov)
         weights[i] = weight ** weight_effect
     weights += 1.e-300
     weights /= np.sum(weights)
     return weights
 
 def estimate(particles, weights):
-    return np.average(particles, axis=0, weights=weights)
+    x = np.average([p['x'] for p in particles], weights=weights)
+    y = np.average([p['y'] for p in particles], weights=weights)
+    z = np.average([p['z'] for p in particles], weights=weights)
+    return np.array([x, y, z])
 
 def neff(weights):
     return 1. / np.sum(np.square(weights))
@@ -150,15 +159,15 @@ inv(transform_poses[1]) @ transform_poses[0]
 
 predictions = particle_filter(coords)
 
-# ecef_coords = [latlonalt_to_ecef(coord[0], coord[1], coord[2]) for coord in coords]
-# x_coords = [coord[0] for coord in ecef_coords]
-# y_coords = [coord[1] for coord in ecef_coords]
+ecef_coords = [latlonalt_to_ecef(coord[0], coord[1], coord[2]) for coord in coords]
+x_coords = [coord[0] for coord in ecef_coords]
+y_coords = [coord[1] for coord in ecef_coords]
 
-# plt.plot(x_coords, y_coords, 'go', label='Ground Truth')
-# plt.plot([pred[0] for pred in predictions], [pred[1] for pred in predictions], 'bx', label='Predicted')
-# plt.legend(loc='lower right')
-# plt.xlabel('ECEF X')
-# plt.ylabel('ECEF Y')
-# plt.title('Particle Filter Predictions in ECEF')
-# plt.show()
+plt.plot(x_coords, y_coords, 'go', label='Ground Truth')
+plt.plot([pred[0] for pred in predictions], [pred[1] for pred in predictions], 'bx', label='Predicted')
+plt.legend(loc='lower right')
+plt.xlabel('ECEF X')
+plt.ylabel('ECEF Y')
+plt.title('Particle Filter Predictions in ECEF')
+plt.show()
 
