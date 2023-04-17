@@ -19,6 +19,7 @@ def create_particles(geoSpatialTransforms, N):
         particle['y'] = y
         particle['z'] = z
         particle['pose'] = pose
+    print(particle)
     return particles
 
 def latlonalt_to_ecef(lat, lon, alt):
@@ -40,31 +41,13 @@ def update_ecef_uncertainties(lat, lon, alt, lat_uncertainty, lon_uncertainty, a
 def predict(particles, prev_lat, prev_lon, prev_alt, current_lat, current_lon, current_alt, prev_pose, pose, noise_std=1):
     prev_x, prev_y, prev_z = latlonalt_to_ecef(prev_lat, prev_lon, prev_alt)
     current_x, current_y, current_z = latlonalt_to_ecef(current_lat, current_lon, current_alt)
-    dist_ecef = np.array([current_x - prev_x, current_y - prev_y, current_z - prev_z])
+    # dist_ecef = np.array([current_x - prev_x, current_y - prev_y, current_z - prev_z])
+    pose_difference = inv(pose) * prev_pose
     noise = np.random.normal(0, noise_std, size=(len(particles), 3))
     for i, particle in enumerate(particles):
         particle['x'] += dist_ecef[0] + noise[i, 0]
         particle['y'] += dist_ecef[1] + noise[i, 1]
         particle['z'] += dist_ecef[2] + noise[i, 2]
-# def predict(particles, delta_time, prev_lat, prev_lon, prev_alt, heading, avg_walking_speed=1.4, noise_std=20):
-#     R = 6371000  # radius of Earth in meters
-#     lat_rad = np.radians(prev_lat)
-#     lon_rad = np.radians(prev_lon)
-    
-#     dlat = (avg_walking_speed * delta_time * np.cos(np.radians(heading))) / R
-#     dlon = (avg_walking_speed * delta_time * np.sin(np.radians(heading))) / (R * np.cos(lat_rad))
-    
-#     new_lat = prev_lat + np.degrees(dlat)
-#     new_lon = prev_lon + np.degrees(dlon)
-
-#     prev_x, prev_y, prev_z = latlonalt_to_ecef(prev_lat, prev_lon, prev_alt)
-#     current_x, current_y, current_z = latlonalt_to_ecef(new_lat, new_lon, prev_alt)
-    
-#     dist_ecef = np.array([current_x - prev_x, current_y - prev_y, current_z - prev_z])
-
-#     noise = np.random.normal(0, noise_std, size=(particles.shape[0], 3))
-#     particles += dist_ecef + noise
-
 
 def update(particles, weights, measurement_ecef, uncertainties, weight_effect=4000000):
     weights.fill(1.0)
