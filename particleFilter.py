@@ -8,6 +8,7 @@ import navpy
 from pyproj import Transformer
 from scipy.stats import multivariate_normal
 from scipy.linalg import inv
+from scipy.spatial.transform import Rotation as R
 
 def enu_to_ecef_rotation_matrix(lat, lon):
     sin_lat = np.sin(np.radians(lat))
@@ -20,11 +21,16 @@ def enu_to_ecef_rotation_matrix(lat, lon):
                   [0, cos_lat, sin_lat]])
     return R
 
+def esu_to_ecef_rotation_matrix(esu):
+    axis = np.array(esu['axis'])
+    angle = esu['angle']
+    return R.from_rotvec(axis*angle).as_matrix()
+
 def create_particles(geoSpatialTransforms, N):
     particles = [dict() for _ in range(N)]
     lat, lon, alt = geoSpatialTransforms[0][:3]
     x, y, z = latlonalt_to_ecef(lat, lon, alt)
-    pose = geoSpatialTransforms[0][-1]
+    pose = geoSpatialTransforms[0][-2]
     for particle in particles:
         particle['x'] = x
         particle['y'] = y
@@ -38,14 +44,14 @@ def latlonalt_to_ecef(lat, lon, alt):
     x, y, z = transformer.transform(lat, lon, alt)
     return x, y, z
 
-def ar_pose_to_ecef(ar_pose, lat, lon, alt):
+def ar_pose_to_ecef(ar_pose, esu, lat, lon, alt):
     ar_pose_matrix = np.array(ar_pose).reshape(4, 4)
 
     # Convert LLA to ECEF
     x, y, z = latlonalt_to_ecef(lat, lon, alt)
 
     # Get the rotation matrix from ENU to ECEF
-    R = enu_to_ecef_rotation_matrix(lat, lon)
+    R = esu_to_ecef_rotation_matrix(esu)
 
     # Construct the ECEF transformation matrix
     T_ecef = np.eye(4)
@@ -68,15 +74,17 @@ def update_ecef_uncertainties(lat, lon, alt, lat_uncertainty, lon_uncertainty, a
     z_uncertainty = alt_uncertainty
 
     return x_uncertainty, y_uncertainty, z_uncertainty
-def predict(particles, prev_lat, prev_lon, prev_alt, current_lat, current_lon, current_alt, prev_pose, pose, noise_std=1):
+def predict(particles, prev_lat, prev_lon, prev_alt, current_lat, current_lon, current_alt, prev_pose, pose, prev_esu, esu, noise_std=1):
     prev_x, prev_y, prev_z = latlonalt_to_ecef(prev_lat, prev_lon, prev_alt)
     current_x, current_y, current_z = latlonalt_to_ecef(current_lat, current_lon, current_alt)
     dist_ecef = np.array([current_x - prev_x, current_y - prev_y, current_z - prev_z])
 
-    pose = ar_pose_to_ecef(pose, current_lat, current_lon, current_alt)
-    prev_pose = ar_pose_to_ecef(prev_pose, prev_lat, prev_lon, prev_alt)
+    pose = ar_pose_to_ecef(pose, esu, current_lat, current_lon, current_alt)
+    prev_pose = ar_pose_to_ecef(prev_pose, prev_esu, prev_lat, prev_lon, prev_alt)
 
-    pose_difference = inv(pose) * prev_pose
+    pose_difference = inv(pose) @ prev_pose
+
+    print(pose_difference)
 
     translation = pose_difference[0:3, 3]
     # rotation = pose_difference[0:3, 0:3]
@@ -89,6 +97,7 @@ def predict(particles, prev_lat, prev_lon, prev_alt, current_lat, current_lon, c
         particle['x'] += translation[0]
         particle['y'] += translation[1]
         particle['z'] += translation[2]
+        print(particle['pose'], pose_difference.shape)
         particle['pose'] = inv(pose_difference) @ particle['pose'] 
 
 def update(particles, weights, measurement_ecef, uncertainties, weight_effect=1):
@@ -124,12 +133,14 @@ def particle_filter(geoSpatialTransforms, N=1000):
 
     for t in range(1, len(geoSpatialTransforms)):
         prev_lat, prev_lon, prev_alt = geoSpatialTransforms[t - 1][:3]
-        prev_pose = geoSpatialTransforms[t-1][-1]
-        pose = geoSpatialTransforms[t][-1]
+        prev_pose = geoSpatialTransforms[t-1][-2]
+        pose = geoSpatialTransforms[t][-2]
+        prev_esu = geoSpatialTransforms[t-1][-1]
+        esu = geoSpatialTransforms[t][-1]
         current_lat, current_lon, current_alt = geoSpatialTransforms[t][:3]
         heading = geoSpatialTransforms[t][3]
         #predict(particles, delta_time, prev_lat, prev_lon, prev_alt, heading)
-        predict(particles, prev_lat, prev_lon, prev_alt, current_lat, current_lon, current_alt, prev_pose, pose)
+        predict(particles, prev_lat, prev_lon, prev_alt, current_lat, current_lon, current_alt, prev_pose, pose, prev_esu, esu)
         print(f"Step: {t}, Heading: {heading}")
         
         measurement_ecef = latlonalt_to_ecef(current_lat, current_lon, current_alt)
@@ -158,9 +169,9 @@ def particle_filter(geoSpatialTransforms, N=1000):
 
     return predictions
 
-f = open('bad_metadata.json')
+f = open('eastupsouth_metadata.json')
 metadata = json.load(f)
-f2 = open('bad_pathdata.json')
+f2 = open('eastupsouth_pathdata.json')
 pathdata = json.load(f2)
 
 alldata = pathdata
@@ -177,7 +188,8 @@ for d in alldata["garAnchorCameraWorldTransformsAndGeoSpatialData"]:
     lon_uncertainty = d["geospatialTransform"]['positionAccuracy']
     alt_uncertainty = d["geospatialTransform"]['altitudeAccuracy']
     pose = np.array(d["cameraWorldTransform"]).reshape(4, 4).T
-    coords.append([lat, lon, alt, heading, lat_uncertainty, lon_uncertainty, alt_uncertainty, pose])
+    esu = d["geospatialTransform"]['eastUpSounth']
+    coords.append([lat, lon, alt, heading, lat_uncertainty, lon_uncertainty, alt_uncertainty, pose, esu])
 
 transform_poses = [np.array(x["cameraWorldTransform"]).reshape(4, 4).T for x in alldata["garAnchorCameraWorldTransformsAndGeoSpatialData"]]
 inv(transform_poses[1]) @ transform_poses[0]
