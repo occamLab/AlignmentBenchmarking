@@ -8,6 +8,7 @@ from pyproj import Transformer
 from scipy.linalg import inv
 from scipy.spatial.transform import Rotation as R
 from scipy import stats
+from mpl_toolkits import mplot3d
 
 
 def make_circle(lat, lon, radius, points,):
@@ -50,18 +51,16 @@ def generate_cloud(lat, lon, alt, heading, ho_uncertainty, he_uncertainty, a_unc
     alt_dist = []
     heading_dist = []
     angles_dist = []
-    lat_dist = []
-    long_dist = []
+    lat_dist = np.zeros(points)
+    long_dist = np.zeros(points)
     alt_dist = normal_dist(alt, a_uncertainty, points)
     heading_dist = normal_dist(heading, he_uncertainty, points)
     angles_dist = uniform_dist(0, 2*math.pi, points)
     distance_dist = normal_dist(0, ho_uncertainty, points)
     for point in range(points):
-        lat_dist, long_dist = meters_to_lat_long(
+        lat_dist[point], long_dist[point] = meters_to_lat_long(
             lat, lon, distance_dist[point], angles_dist[point])
     return lat_dist, long_dist, alt_dist, heading_dist
-
-
 def create_particles(geoSpatialTransforms, N):
     particles = [dict() for _ in range(N)]
     lat, lon, alt = geoSpatialTransforms[0][:3]
@@ -87,7 +86,7 @@ metadata = json.load(f)
 f2 = open('eastupsouth_pathdata.json')
 pathdata = json.load(f2)
 
-alldata = pathdatagit
+alldata = pathdata
 for key in metadata:
     alldata[key] = metadata[key]
 timestamps = alldata["geoSpatialTransformTimes"]
@@ -104,6 +103,42 @@ for d in alldata["garAnchorCameraWorldTransformsAndGeoSpatialData"]:
     esu = d["geospatialTransform"]['eastUpSounth']
     coords.append([lat, lon, alt, heading, lat_uncertainty,
                   lon_uncertainty, alt_uncertainty, pose, esu])
-
+points = 1000
 lat_dist, long_dist, alt_dist, heading_dist = generate_cloud(
-    lat, lon, alt, heading, lat_uncertainty, alt_uncertainty, .01, 1000)
+    lat, lon, alt, heading, lat_uncertainty, alt_uncertainty, .01, points)
+
+# plt.hist(lat_dist, color='lightgreen', ec='black', bins=15)
+# plt.title("Latitude Distribution")
+# plt.show()
+# plt.hist(long_dist, color='lightgreen', ec='black', bins=15)
+# plt.title("Longitude Distribution")
+# plt.show()
+# plt.hist(heading_dist, color='lightgreen', ec='black', bins=15)
+# plt.title("Heading Distribution")
+# plt.show()
+# plt.hist(alt_dist, color='lightgreen', ec='black', bins=15)
+# plt.title("Altitude Distribution")
+# plt.show()
+# plt.hist(heading_dist, color='lightgreen', ec='black', bins=15)
+# plt.title("Heading Distribution")
+# plt.show()
+# plt.hist2d(lat_dist, long_dist)
+# plt.title("Lat/Long Distribution")
+# plt.show()
+x_dist  = np.zeros(points)
+y_dist = np.zeros(points)
+z_dist = np.zeros(points)
+for point in range(points):
+    x_dist[point], y_dist[point], z_dist[point] = latlonalt_to_ecef(lat_dist[point], long_dist[point], alt_dist[point])
+
+
+fig = plt.figure()
+ax = plt.axes(projection='3d')
+ax.scatter(x_dist, y_dist, z_dist, c=z_dist, cmap='viridis', linewidth=0.5)
+plt.show()
+
+ax = plt.axes(projection='3d')
+ax.plot_trisurf(x_dist, y_dist, z_dist,
+                cmap='viridis', edgecolor='none')
+plt.show()
+
