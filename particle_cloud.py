@@ -55,7 +55,7 @@ def generate_cloud(lat, lon, alt, heading, ho_uncertainty, he_uncertainty, a_unc
     alt_dist = normal_dist(alt, a_uncertainty, points)
     heading_dist = normal_dist(heading, he_uncertainty, points)
     angles_dist = uniform_dist(0, 2*math.pi, points)
-    distance_dist = normal_dist([0, 0], ho_uncertainty, points)
+    distance_dist = normal_dist(0, ho_uncertainty, points)
     for point in range(points):
         lat_dist, long_dist = meters_to_lat_long(
             lat, lon, distance_dist[point], angles_dist[point])
@@ -87,7 +87,7 @@ metadata = json.load(f)
 f2 = open('eastupsouth_pathdata.json')
 pathdata = json.load(f2)
 
-alldata = pathdata
+alldata = pathdatagit
 for key in metadata:
     alldata[key] = metadata[key]
 timestamps = alldata["geoSpatialTransformTimes"]
