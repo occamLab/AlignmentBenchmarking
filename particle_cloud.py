@@ -8,7 +8,9 @@ from pyproj import Transformer
 from scipy.linalg import inv
 from scipy.spatial.transform import Rotation as R
 from scipy import stats
-from mpl_toolkits import mplot3d
+import open3d as o3d
+from sklearn.decomposition import PCA
+import pandas as pd
 
 
 def make_circle(lat, lon, radius, points,):
@@ -47,7 +49,7 @@ def uniform_dist(start, width, points):
     return data_uniform
 
 
-def generate_cloud(lat, lon, alt, heading, ho_uncertainty, he_uncertainty, a_uncertainty, points):
+def generate_cloud(lat, lon, alt, heading, ho_uncertainty, a_uncertainty, he_uncertainty, points):
     alt_dist = []
     heading_dist = []
     angles_dist = []
@@ -61,6 +63,8 @@ def generate_cloud(lat, lon, alt, heading, ho_uncertainty, he_uncertainty, a_unc
         lat_dist[point], long_dist[point] = meters_to_lat_long(
             lat, lon, distance_dist[point], angles_dist[point])
     return lat_dist, long_dist, alt_dist, heading_dist
+
+
 def create_particles(geoSpatialTransforms, N):
     particles = [dict() for _ in range(N)]
     lat, lon, alt = geoSpatialTransforms[0][:3]
@@ -99,46 +103,71 @@ for d in alldata["garAnchorCameraWorldTransformsAndGeoSpatialData"]:
     lat_uncertainty = d["geospatialTransform"]['positionAccuracy']
     lon_uncertainty = d["geospatialTransform"]['positionAccuracy']
     alt_uncertainty = d["geospatialTransform"]['altitudeAccuracy']
+    yaw_uncertainty = d["geospatialTransform"]['orientationYawAccuracy']
     pose = np.array(d["cameraWorldTransform"]).reshape(4, 4).T
     esu = d["geospatialTransform"]['eastUpSounth']
     coords.append([lat, lon, alt, heading, lat_uncertainty,
                   lon_uncertainty, alt_uncertainty, pose, esu])
 points = 1000
+print(lat)
+print(lon)
+print(lat_uncertainty)
+print(alt)
+print(alt_uncertainty)
+print(heading)
+print(yaw_uncertainty)
 lat_dist, long_dist, alt_dist, heading_dist = generate_cloud(
-    lat, lon, alt, heading, lat_uncertainty, alt_uncertainty, .01, points)
+    lat, lon, alt, heading, lat_uncertainty, alt_uncertainty, yaw_uncertainty, points)
 
-# plt.hist(lat_dist, color='lightgreen', ec='black', bins=15)
-# plt.title("Latitude Distribution")
-# plt.show()
-# plt.hist(long_dist, color='lightgreen', ec='black', bins=15)
-# plt.title("Longitude Distribution")
-# plt.show()
-# plt.hist(heading_dist, color='lightgreen', ec='black', bins=15)
-# plt.title("Heading Distribution")
-# plt.show()
-# plt.hist(alt_dist, color='lightgreen', ec='black', bins=15)
-# plt.title("Altitude Distribution")
-# plt.show()
-# plt.hist(heading_dist, color='lightgreen', ec='black', bins=15)
-# plt.title("Heading Distribution")
-# plt.show()
-# plt.hist2d(lat_dist, long_dist)
-# plt.title("Lat/Long Distribution")
-# plt.show()
-x_dist  = np.zeros(points)
+plt.hist(lat_dist, color='lightgreen', ec='black', bins=15)
+plt.title("Latitude Distribution")
+plt.show()
+plt.hist(long_dist, color='lightgreen', ec='black')
+plt.title("Longitude Distribution")
+plt.show()
+plt.hist(heading_dist, color='lightgreen', ec='black')
+plt.title("Heading Distribution")
+plt.show()
+plt.hist(alt_dist, color='lightgreen', ec='black')
+plt.title("Altitude Distribution")
+plt.show()
+plt.show()
+plt.hist2d(lat_dist, long_dist)
+plt.title("Lat/Long Distribution")
+plt.show()
+x_dist = np.zeros(points)
 y_dist = np.zeros(points)
 z_dist = np.zeros(points)
 for point in range(points):
-    x_dist[point], y_dist[point], z_dist[point] = latlonalt_to_ecef(lat_dist[point], long_dist[point], alt_dist[point])
+    x_dist[point], y_dist[point], z_dist[point] = latlonalt_to_ecef(
+        lat_dist[point], long_dist[point], alt_dist[point])
 
 
 fig = plt.figure()
 ax = plt.axes(projection='3d')
 ax.scatter(x_dist, y_dist, z_dist, c=z_dist, cmap='viridis', linewidth=0.5)
+plt.title("ECEF Distribution")
 plt.show()
 
 ax = plt.axes(projection='3d')
 ax.plot_trisurf(x_dist, y_dist, z_dist,
                 cmap='viridis', edgecolor='none')
+plt.title("ECEF Distribution")
 plt.show()
 
+pca = PCA(n_components=2)
+lat_lon_dataset = pd.DataFrame({'lat': lat_dist, 'lon': long_dist})
+print(lat_lon_dataset)
+pca.fit(lat_lon_dataset)
+principalComponents = pca.fit_transform(lat_lon_dataset)
+principalDf = pd.DataFrame(data=principalComponents, columns=[
+                           'principal component 1', 'principal component 2'])
+plt.figure(figsize=(10, 10))
+plt.xticks(fontsize=12)
+plt.yticks(fontsize=14)
+plt.xlabel('Principal Component - 1', fontsize=20)
+plt.ylabel('Principal Component - 2', fontsize=20)
+plt.title("Principal Component Analysis of lat/lon Dataset", fontsize=20)
+plt.scatter(principalDf['principal component 1'],
+            principalDf['principal component 2'], c='r', s=50)
+plt.show()
