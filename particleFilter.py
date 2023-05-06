@@ -36,7 +36,6 @@ def create_particles(geoSpatialTransforms, N):
         particle['y'] = y
         particle['z'] = z
         particle['pose'] = pose
-    print(particle)
     return particles
 
 def latlonalt_to_ecef(lat, lon, alt):
@@ -50,7 +49,7 @@ def ar_pose_to_ecef(ar_pose, esu, lat, lon, alt):
     # Convert LLA to ECEF
     x, y, z = latlonalt_to_ecef(lat, lon, alt)
 
-    # Get the rotation matrix from ENU to ECEF
+    # Get the rotation matrix from ESU to ECEF
     R = esu_to_ecef_rotation_matrix(esu)
 
     # Construct the ECEF transformation matrix
@@ -58,7 +57,7 @@ def ar_pose_to_ecef(ar_pose, esu, lat, lon, alt):
     T_ecef[:3, :3] = R
     T_ecef[:3, 3] = [x, y, z]
 
-    # Convert AR pose from ENU to ECEF
+    # Convert AR pose from ESU to ECEF
     ar_pose_ecef = np.dot(T_ecef, ar_pose_matrix)
 
     return ar_pose_ecef
@@ -82,9 +81,7 @@ def predict(particles, prev_lat, prev_lon, prev_alt, current_lat, current_lon, c
     pose = ar_pose_to_ecef(pose, esu, current_lat, current_lon, current_alt)
     prev_pose = ar_pose_to_ecef(prev_pose, prev_esu, prev_lat, prev_lon, prev_alt)
 
-    pose_difference = inv(pose) @ prev_pose
-
-    print(pose_difference)
+    pose_difference = inv(prev_pose) @ pose
 
     translation = pose_difference[0:3, 3]
     # rotation = pose_difference[0:3, 0:3]
@@ -97,7 +94,6 @@ def predict(particles, prev_lat, prev_lon, prev_alt, current_lat, current_lon, c
         particle['x'] += translation[0]
         particle['y'] += translation[1]
         particle['z'] += translation[2]
-        print(particle['pose'], pose_difference.shape)
         particle['pose'] = inv(pose_difference) @ particle['pose'] 
 
 def update(particles, weights, measurement_ecef, uncertainties, weight_effect=1):
@@ -199,12 +195,18 @@ predictions = particle_filter(coords)
 ecef_coords = [latlonalt_to_ecef(coord[0], coord[1], coord[2]) for coord in coords]
 x_coords = [coord[0] for coord in ecef_coords]
 y_coords = [coord[1] for coord in ecef_coords]
+z_coords = [coord[2] for coord in ecef_coords]
 
-plt.plot(x_coords, y_coords, 'go', label='Ground Truth')
-plt.plot([pred[0] for pred in predictions], [pred[1] for pred in predictions], 'bx', label='Predicted')
-plt.legend(loc='lower right')
-plt.xlabel('ECEF X')
-plt.ylabel('ECEF Y')
+fig = plt.figure()
+ax = plt.axes(projection='3d')
+ax.scatter(x_coords, y_coords, z_coords, c='g', marker='o', label='Ground Truth')
+ax.scatter([pred[0] for pred in predictions], [pred[1] for pred in predictions], [pred[2] for pred in predictions], c='b', marker='x', label='Predicted')
+# plt.plot(x_coords, y_coords, z_coords, 'go', label='Ground Truth')
+# plt.plot([pred[0] for pred in predictions], [pred[1] for pred in predictions], [pred[2] for pred in predictions],'bx', label='Predicted')
+
+# plt.legend(loc='lower right')
+# plt.xlabel('ECEF X')
+# plt.ylabel('ECEF Y')
 plt.title('Particle Filter Predictions in ECEF')
 plt.show()
 
