@@ -9,6 +9,7 @@ from pyproj import Transformer
 from scipy.stats import multivariate_normal
 from scipy.linalg import inv
 from scipy.spatial.transform import Rotation as R
+from particle_cloud.py import generate_cloud
 
 def enu_to_ecef_rotation_matrix(lat, lon):
     sin_lat = np.sin(np.radians(lat))
