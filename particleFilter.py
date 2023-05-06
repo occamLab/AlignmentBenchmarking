@@ -4,12 +4,11 @@ from numpy.linalg import norm
 from numpy.random import randn
 import matplotlib.pyplot as plt
 import json
-import navpy
 from pyproj import Transformer
 from scipy.stats import multivariate_normal
 from scipy.linalg import inv
 from scipy.spatial.transform import Rotation as R
-from particle_cloud.py import generate_cloud
+from particle_cloud import generate_cloud
 
 def enu_to_ecef_rotation_matrix(lat, lon):
     sin_lat = np.sin(np.radians(lat))
@@ -29,13 +28,19 @@ def esu_to_ecef_rotation_matrix(esu):
 
 def create_particles(geoSpatialTransforms, N):
     particles = [dict() for _ in range(N)]
-    lat, lon, alt = geoSpatialTransforms[0][:3]
-    x, y, z = latlonalt_to_ecef(lat, lon, alt)
+    high_acc_pt = geoSpatialTransforms[0]
+    lat, lon, alt, _ = generate_cloud(high_acc_pt[0], high_acc_pt[1], high_acc_pt[2], high_acc_pt[3], high_acc_pt[4], high_acc_pt[5], high_acc_pt[6], N)
+    x_coords, y_coords, z_coords = [], [], []
+    for i in range(N):
+        x, y, z = latlonalt_to_ecef(lat[i], lon[i], alt[i])
+        x_coords.append(x)
+        y_coords.append(y)
+        z_coords.append(z)
     pose = geoSpatialTransforms[0][-2]
-    for particle in particles:
-        particle['x'] = x
-        particle['y'] = y
-        particle['z'] = z
+    for i, particle in enumerate(particles):
+        particle['x'] = x_coords[i]
+        particle['y'] = y_coords[i]
+        particle['z'] = z_coords[i]
         particle['pose'] = pose
     return particles
 
@@ -182,11 +187,11 @@ for d in alldata["garAnchorCameraWorldTransformsAndGeoSpatialData"]:
     alt = d["geospatialTransform"]['altitude']
     heading = d["geospatialTransform"]['heading']
     lat_uncertainty = d["geospatialTransform"]['positionAccuracy']
-    lon_uncertainty = d["geospatialTransform"]['positionAccuracy']
     alt_uncertainty = d["geospatialTransform"]['altitudeAccuracy']
+    heading_uncertainty = d["geospatialTransform"]['orientationYawAccuracy']
     pose = np.array(d["cameraWorldTransform"]).reshape(4, 4).T
     esu = d["geospatialTransform"]['eastUpSounth']
-    coords.append([lat, lon, alt, heading, lat_uncertainty, lon_uncertainty, alt_uncertainty, pose, esu])
+    coords.append([lat, lon, alt, heading, lat_uncertainty, alt_uncertainty, heading_uncertainty, pose, esu])
 
 transform_poses = [np.array(x["cameraWorldTransform"]).reshape(4, 4).T for x in alldata["garAnchorCameraWorldTransformsAndGeoSpatialData"]]
 inv(transform_poses[1]) @ transform_poses[0]
