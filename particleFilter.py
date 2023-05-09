@@ -11,6 +11,16 @@ from scipy.spatial.transform import Rotation as R
 from particle_cloud import generate_cloud
 
 def enu_to_ecef_rotation_matrix(lat, lon):
+    """
+    Calculate the rotation matrix to convert from East-North-Up (ENU) frame to Earth-Centered-Earth-Fixed (ECEF) frame.
+
+    Args:
+        lat (float): Latitude in degrees.
+        lon (float): Longitude in degrees.
+
+    Returns:
+        R (numpy.array): 3x3 rotation matrix for converting coordinates from ENU to ECEF.
+    """
     sin_lat = np.sin(np.radians(lat))
     cos_lat = np.cos(np.radians(lat))
     sin_lon = np.sin(np.radians(lon))
@@ -22,11 +32,31 @@ def enu_to_ecef_rotation_matrix(lat, lon):
     return R
 
 def esu_to_ecef_rotation_matrix(esu):
+    """
+    Calculate the rotation matrix to convert from East-South-Up (ESU) frame to Earth-Centered-Earth-Fixed (ECEF) frame.
+
+    Args:
+        esu (dict): Dictionary containing rotation axis and angle.
+
+    Returns:
+        R (numpy.array): 3x3 rotation matrix for converting coordinates from ESU to ECEF.
+    """
     axis = np.array(esu['axis'])
     angle = esu['angle']
     return R.from_rotvec(axis*angle).as_matrix()
 
 def create_particles(geoSpatialTransforms, N):
+    """
+    Create a set of particles based on the initial geospatial transform.
+
+    Args:
+        geoSpatialTransforms (list): List of geospatial transforms.
+        N (int): Number of particles to create.
+
+    Returns:
+        particles (list): List of dictionaries containing particle information.
+    """
+
     particles = [dict() for _ in range(N)]
     high_acc_pt = geoSpatialTransforms[0]
     lat, lon, alt, _ = generate_cloud(high_acc_pt[0], high_acc_pt[1], high_acc_pt[2], high_acc_pt[3], high_acc_pt[4], high_acc_pt[5], high_acc_pt[6], N)
@@ -45,11 +75,39 @@ def create_particles(geoSpatialTransforms, N):
     return particles
 
 def latlonalt_to_ecef(lat, lon, alt):
+    """
+    Convert latitude, longitude, and altitude (LLA) to Earth-Centered-Earth-Fixed (ECEF) coordinates.
+
+    Args:
+        lat (float): Latitude in degrees.
+        lon (float): Longitude in degrees.
+        alt (float): Altitude in meters.
+
+    Returns:
+        x (float): ECEF X coordinate.
+        y (float): ECEF Y coordinate.
+        z (float): ECEF Z coordinate.
+    """
+
     transformer = Transformer.from_crs("epsg:4326", "epsg:4978")
     x, y, z = transformer.transform(lat, lon, alt)
     return x, y, z
 
 def ar_pose_to_ecef(ar_pose, esu, lat, lon, alt):
+    """
+    Convert an AR pose from the East-South-Up (ESU) frame to the Earth-Centered-Earth-Fixed (ECEF) frame.
+
+    Args:
+        ar_pose (list): List representing the AR pose matrix in ESU frame.
+        esu (dict): Dictionary containing rotation axis and angle.
+        lat (float): Latitude in degrees.
+        lon (float): Longitude in degrees.
+        alt (float): Altitude in meters.
+
+    Returns:
+        ar_pose_ecef (numpy.array): 4x4 AR pose matrix in the ECEF frame.
+    """
+
     ar_pose_matrix = np.array(ar_pose).reshape(4, 4)
 
     # Convert LLA to ECEF
@@ -69,6 +127,22 @@ def ar_pose_to_ecef(ar_pose, esu, lat, lon, alt):
     return ar_pose_ecef
 
 def update_ecef_uncertainties(lat, lon, alt, lat_uncertainty, lon_uncertainty, alt_uncertainty):
+    """
+    Update uncertainties of ECEF coordinates based on the uncertainties of latitude, longitude, and altitude.
+
+    Args:
+        lat (float): Latitude in degrees.
+        lon (float): Longitude in degrees.
+        alt (float): Altitude in meters.
+        lat_uncertainty (float): Uncertainty of latitude in degrees.
+        lon_uncertainty (float): Uncertainty of longitude in degrees.
+        alt_uncertainty (float): Uncertainty of altitude in meters.
+
+    Returns:
+        x_uncertainty (float): Uncertainty of ECEF X coordinate.
+        y_uncertainty (float): Uncertainty of ECEF Y coordinate.
+        z_uncertainty (float): Uncertainty of ECEF Z coordinate.
+    """
     a = 6378137.0  # Earth's semi-major axis (m)
     f = 1 / 298.257223563  # Earth's flattening
     e2 = 2 * f - f ** 2  # Earth's first eccentricity squared
@@ -80,6 +154,23 @@ def update_ecef_uncertainties(lat, lon, alt, lat_uncertainty, lon_uncertainty, a
 
     return x_uncertainty, y_uncertainty, z_uncertainty
 def predict(particles, prev_lat, prev_lon, prev_alt, current_lat, current_lon, current_alt, prev_pose, pose, prev_esu, esu, noise_std=1):
+    """
+    Predict the next state of the particles based on the previous and current geospatial transforms.
+
+    Args:
+        particles (list): List of dictionaries containing particle information.
+        prev_lat (float): Previous latitude in degrees.
+        prev_lon (float): Previous longitude in
+        prev_alt (float): Previous altitude in meters.
+        current_lat (float): Current latitude in degrees.
+        current_lon (float): Current longitude in degrees.
+        current_alt (float): Current altitude in meters.
+        prev_pose (list): List representing the previous AR pose matrix.
+        pose (list): List representing the current AR pose matrix.
+        prev_esu (dict): Dictionary containing previous rotation axis and angle.
+        esu (dict): Dictionary containing current rotation axis and angle.
+        noise_std (float, optional): Standard deviation of the noise added to the prediction. Defaults to 1.
+    """
     prev_x, prev_y, prev_z = latlonalt_to_ecef(prev_lat, prev_lon, prev_alt)
     current_x, current_y, current_z = latlonalt_to_ecef(current_lat, current_lon, current_alt)
     dist_ecef = np.array([current_x - prev_x, current_y - prev_y, current_z - prev_z])
@@ -103,6 +194,19 @@ def predict(particles, prev_lat, prev_lon, prev_alt, current_lat, current_lon, c
         particle['pose'] = inv(pose_difference) @ particle['pose'] 
 
 def update(particles, weights, measurement_ecef, uncertainties, weight_effect=1):
+    """
+    Update the weights of the particles based on the measurements and uncertainties.
+
+    Args:
+        particles (list): List of dictionaries containing particle information.
+        weights (numpy.array): Array of particle weights.
+        measurement_ecef (tuple): ECEF coordinates of the measurement.
+        uncertainties (tuple): Uncertainties of the ECEF coordinates.
+        weight_effect (int, optional): Exponent to apply on the weight. Defaults to 1.
+
+    Returns:
+        weights (numpy.array): Updated array of particle weights.
+    """
     weights.fill(1.0)
 
     for i, p in enumerate(particles):
@@ -115,20 +219,63 @@ def update(particles, weights, measurement_ecef, uncertainties, weight_effect=1)
     return weights
 
 def estimate(particles, weights):
+    """
+    Estimate the ECEF position using the weighted average of the particles.
+
+    Args:
+        particles (list): List of dictionaries containing particle information.
+        weights (numpy.array): Array of particle weights.
+
+    Returns:
+        estimate_position (numpy.array): Estimated ECEF position.
+    """
     x = np.average([p['x'] for p in particles], weights=weights)
     y = np.average([p['y'] for p in particles], weights=weights)
     z = np.average([p['z'] for p in particles], weights=weights)
     return np.array([x, y, z])
 
 def neff(weights):
+    """
+    NOT USED
+
+    Calculate the effective number of particles.
+
+    Args:
+        weights (numpy.array): Array of particle weights.
+
+    Returns:
+        neff (float): Effective number of particles.
+    """
     return 1. / np.sum(np.square(weights))
 
 def resample_from_index(particles, weights, indexes):
+    """
+    NOT USED
+    Resample particles based on the given indexes.
+
+    Args:
+        particles (list): List of dictionaries containing particle information.
+        weights (numpy.array): Array of particle weights.
+        indexes (numpy.array): Array of resampling indexes.
+
+    Returns:
+        None
+    """
     particles[:] = particles[indexes]
     weights.resize(len(particles))
     weights.fill(1.0 / len(weights))
 
 def particle_filter(geoSpatialTransforms, N=1000):
+    """
+    Perform particle filtering on the given geospatial transforms.
+
+    Args:
+        geoSpatialTransforms (list): List of geospatial transforms.
+        N (int, optional): Number of particles. Default is 1000.
+
+    Returns:
+        predictions (list): List of predicted ECEF positions.
+    """
     particles = create_particles(geoSpatialTransforms, N)
     weights = np.ones(N) / N
     predictions = []
@@ -156,10 +303,10 @@ def particle_filter(geoSpatialTransforms, N=1000):
 
         print(f"Weights at step {t}: {weights}")
         
-        if neff(weights) < N / 2:
-            return
-            indexes = systematic_resample(weights)
-            resample_from_index(particles, weights, indexes)
+        # if neff(weights) < N / 2:
+        #     return
+        #     indexes = systematic_resample(weights)
+        #     resample_from_index(particles, weights, indexes)
         
         print(f"Particles at step {t}: {particles}")
 

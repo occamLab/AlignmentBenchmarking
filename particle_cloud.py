@@ -14,6 +14,19 @@ import pandas as pd
 
 
 def make_circle(lat, lon, radius, points,):
+    """
+    Generate a list of latitude and longitude coordinates forming a circle around the given point.
+
+    Args:
+        lat (float): Latitude of the center of the circle in degrees.
+        lon (float): Longitude of the center of the circle in degrees.
+        radius (float): Radius of the circle in meters.
+        points (int): Number of points to generate on the circle.
+
+    Returns:
+        lat (list): List of latitude coordinates of the points on the circle.
+        lon (list): List of longitude coordinates of the points on the circle.
+    """
     lat = []
     lon = []
     step_size = 2*math.pi/points
@@ -27,12 +40,37 @@ def make_circle(lat, lon, radius, points,):
 
 
 def normal_dist(mean, std, points):
+    """
+    Generate random samples from a normal distribution with the given mean and standard deviation.
+
+    Args:
+        mean (float): Mean of the normal distribution.
+        std (float): Standard deviation of the normal distribution.
+        points (int): Number of random samples to generate.
+
+    Returns:
+        dist (numpy.ndarray): Array of random samples from the normal distribution.
+    """
     normal = np.random.normal(mean, std, points)
     dist = np.random.choice(normal, size=points)
     return dist
 
 
 def meters_to_lat_long(lat, lon, radius, angle):
+    """
+    Convert a distance in meters and angle in radians from a given point to latitude and longitude coordinates.
+
+    Args:
+        lat (float): Latitude of the starting point in degrees.
+        lon (float): Longitude of the starting point in degrees.
+        radius (float): Distance from the starting point in meters.
+        angle (float): Angle in radians.
+
+    Returns:
+        new_latitude (float): Latitude of the resulting point in degrees.
+        new_longitude (float): Longitude of the resulting point in degrees.
+    """
+
     r_earth = 6378100
     dy = radius * math.sin(angle)
     dx = radius * math.cos(angle)
@@ -43,6 +81,17 @@ def meters_to_lat_long(lat, lon, radius, angle):
 
 
 def uniform_dist(start, width, points):
+    """
+    Generate random samples from a uniform distribution with the given start and width.
+
+    Args:
+        start (float): Start of the uniform distribution.
+        width (float): Width of the uniform distribution.
+        points (int): Number of random samples to generate.
+
+    Returns:
+        data_uniform (numpy.ndarray): Array of random samples from the uniform distribution.
+    """
     data_uniform = []
     n = 10000
     data_uniform = stats.uniform.rvs(size=points, loc=start, scale=width)
@@ -50,6 +99,25 @@ def uniform_dist(start, width, points):
 
 
 def generate_cloud(lat, lon, alt, heading, ho_uncertainty, a_uncertainty, he_uncertainty, points):
+    """
+    Generate a point cloud with the given uncertainties around a given location and heading.
+
+    Args:
+        lat (float): Latitude of the location in degrees.
+        lon (float): Longitude of the location in degrees.
+        alt (float): Altitude of the location in meters.
+        heading (float): Heading angle of the location in degrees.
+        ho_uncertainty (float): Horizontal position uncertainty in meters.
+        a_uncertainty (float): Altitude uncertainty in meters.
+        he_uncertainty (float): Heading angle uncertainty in degrees.
+        points (int): Number of points to generate in the point cloud.
+
+    Returns:
+        lat_dist (numpy.ndarray): Array of latitude coordinates of the points in the point cloud.
+        long_dist (numpy.ndarray): Array of longitude coordinates of the points in the point cloud.
+        alt_dist (numpy.ndarray): Array of altitude values of the points in the point cloud.
+        heading_dist (numpy.ndarray): Array of heading angle values of the points in the point cloud.
+    """
     alt_dist = []
     heading_dist = []
     angles_dist = []
